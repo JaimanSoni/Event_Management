@@ -1,82 +1,55 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const helmet = require("helmet");
+const dbConnection = require("./config/db.js");
+// const adminRoute = require("./routes/adminRouter");
+const authRoutes =  require("./routes/authRoutes")
+const eventRoutes = require('./routes/eventRoutes');
 
-const adminRoutes = require('./routes/adminRoutes');
-const bookRoutes = require('./routes/bookRoutes');
-const orderRoutes = require('./routes/orderRoutes');
-
+// const orderRoute = require("./routes/orderRouter");
+// const menuRoute = require("./routes/menuRouter");
+// const contactRoutes = require('./routes/contactRouter');
+// const Order = require("./models/orderModel");
+const PORT = process.env.PORT || 8000;
+require("dotenv").config();
 const app = express();
+// Allowed origins for CORS
+const allowedOrigins = [
+  "https://burgerbistro.vercel.app",
+  "http://192.168.179.136:5173",
+  "http://localhost:5173",
+];
 
-// Security middleware
-// app.use(helmet());
-// app.use(cors({
-//   origin: ['http://localhost:5173', 'http://192.168.98.20:5173'], // Your frontend URL
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization']
-// }));
+// Trust the first proxy for CORS
+app.set("trust proxy", 1);
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: "GET,POST,PUT,DELETE",
+    credentials: true,
+  })
+);
 
-
-// Update your CORS configuration in server.js
+// Middleware
 app.use(helmet());
-// Add helmet configuration to allow cross-origin
-app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
-
-app.use(cors({
-  origin: function(origin, callback) {
-    const allowedOrigins = ['http://localhost:5173', 'http://192.168.98.20:5173', 'http://192.168.75.20:5173'];
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 600 
-}));
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 100 
-});
-app.use(limiter);
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(express.json());
+app.use('/api/auth', authRoutes);
+app.use('/api/events', eventRoutes);
 
-
-app.use('/api/admin', adminRoutes);
-app.use('/api/books', bookRoutes);
-app.use('/api/orders', orderRoutes);
-
-const sequelize = require('./config/db');
-
-const startServer = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('Database connection established successfully.');
-
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
-      console.log('Database synced');
-    }
-
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('Unable to start server:', error);
-    process.exit(1);
-  }
-};
-
-startServer();
+// Database connection and server start
+dbConnection().then(() => {
+  // Routes and other setup can go here
+  app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+  });
+}).catch(error => {
+  console.error('Failed to connect to database:', error);
+});
